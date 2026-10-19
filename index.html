@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>고양 로컬 아카이브 : 숨은 고양 찾기 🐾</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Cute Fonts (Gaegu, Gowun Dodum) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet">
+
+  <!-- Leaflet CSS & JS (어디서나 도메인 제약 없이 100% 작동하는 오픈 지도 라이브러리) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            skyPastel: '#E0F2FE',
+            skyBright: '#7DD3FC',
+            skyPrimary: '#38BDF8',
+            skyAccent: '#0284C7',
+            pastelBg: '#F0F9FF',
+            creamBg: '#FEFCE8',
+            softPink: '#FCE7F3',
+          },
+          fontFamily: {
+            gaegu: ['Gaegu', 'cursive'],
+            gowun: ['Gowun Dodum', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Gowun Dodum', sans-serif;
+      background-color: #F0F9FF;
+      color: #334155;
+    }
+    .font-cute {
+      font-family: 'Gaegu', cursive;
+    }
+    
+    /* Stamp bounce animation */
+    @keyframes stampBounce {
+      0% { transform: scale(3) rotate(-15deg); opacity: 0; }
+      50% { transform: scale(0.9) rotate(5deg); opacity: 1; }
+      75% { transform: scale(1.1) rotate(-3deg); }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+    .animate-stamp {
+      animation: stampBounce 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #E0F2FE;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #7DD3FC;
+      border-radius: 9999px;
+    }
+
+    /* Polaroids styling */
+    .polaroid {
+      background: white;
+      padding: 12px 12px 24px 12px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .polaroid:hover {
+      transform: translateY(-4px) rotate(1deg);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.12);
+    }
+
+    /* Custom Leaflet Map styling */
+    .leaflet-popup-content-wrapper {
+      border-radius: 1rem;
+      padding: 4px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+    .leaflet-popup-tip {
+      background: white;
+    }
+    
+    /* Custom Map Pin Pulse Effect */
+    .custom-cat-pin-inner {
+      animation: pinPulse 2s infinite;
+    }
+    @keyframes pinPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Top Navigation Header -->
+  <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-sky-200 shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+      
+      <!-- Brand Logo & Slogan -->
+      <div class="flex items-center gap-3 cursor-pointer" onclick="switchTab('map')">
+        <div class="w-12 h-12 bg-skyBright/30 rounded-2xl flex items-center justify-center text-2xl shadow-inner border border-skyBright">
+          🐾
+        </div>
+        <div>
+          <h1 class="font-cute text-2xl sm:text-3xl font-bold text-sky-800 tracking-wide flex items-center gap-1.5">
+            숨은 고양 찾기 <span class="text-xs font-gowun bg-skyPrimary text-white px-2 py-0.5 rounded-full font-normal">고양시 로컬 잡지</span>
+          </h1>
+          <p class="text-xs text-slate-500">지도로 발견하고 잡지로 기록하는 고양시 골목 이야기</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex bg-skyPastel/60 p-1.5 rounded-2xl border border-sky-200 text-sm font-medium w-full sm:w-auto justify-around">
+        <button id="nav-map" onclick="switchTab('map')" class="flex items-center gap-1.5 px-4 py-2 rounded-xl transition-all font-cute text-lg text-sky-900 font-bold bg-white shadow-sm">
+          🗺️ 로컬 지도
+        </button>
+        <button id="nav-quest" onclick="switchTab('quest')" class="flex items-center gap-1.5 px-4 py-2 rounded-xl transition-all font-cute text-lg text-slate-600 hover:text-sky-800">
+          🏵️ 퀘스트 도장판
+        </button>
+        <button id="nav-archive" onclick="switchTab('archive')" class="flex items-center gap-1.5 px-4 py-2 rounded-xl transition-all font-cute text-lg text-slate-600 hover:text-sky-800">
+          📖 동네 일기장
+        </button>
+      </nav>
+
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-grow max-w-6xl w-full mx-auto p-4 sm:p-6">
+
+    <!-- TAB 1: MAP & SEARCH -->
+    <section id="tab-map" class="space-y-6">
+      
+      <!-- Intro Banner -->
+      <div class="bg-gradient-to-r from-sky-100 via-skyPastel to-indigo-100 p-5 rounded-3xl border border-sky-200 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div>
+          <span class="inline-block px-3 py-1 bg-white/80 text-sky-700 text-xs rounded-full font-bold mb-2">📍 경기도 고양시 스페셜</span>
+          <h2 class="font-cute text-2xl sm:text-3xl font-bold text-slate-800">익숙했던 우리 동네, 새로운 시선으로 발견하기!</h2>
+          <p class="text-xs sm:text-sm text-slate-600 mt-1">지도의 핀을 클릭해 숨겨진 골목 스팟과 스페셜 퀘스트를 확인해보세요.</p>
+        </div>
+        <div class="flex items-center gap-2 bg-white/70 px-4 py-2 rounded-2xl shadow-sm border border-sky-100">
+          <span class="text-2xl">🐈</span>
+          <span class="text-xs text-slate-700 font-medium">현재 탐색 가능 로컬 스팟: <strong id="spot-count" class="text-skyAccent">6개</strong></span>
+        </div>
+      </div>
+
+      <!-- Search & Filters -->
+      <div class="flex flex-col sm:flex-row gap-3 items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-sky-100">
+        <!-- Search Input -->
+        <div class="relative w-full sm:w-80">
+          <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-skyPrimary"></i>
+          <input type="text" id="searchInput" oninput="filterSpots()" placeholder="스팟 이름, 동네 검색 (예: 밤리단길)" 
+                 class="w-full pl-10 pr-4 py-2 bg-skyPastel/30 border border-sky-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-skyBright">
+        </div>
+
+        <!-- Filter Tags -->
+        <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+          <button onclick="setFilter('전체')" class="tag-btn active px-3 py-1.5 rounded-xl text-xs font-medium transition-all bg-skyPrimary text-white shadow-sm">#전체</button>
+          <button onclick="setFilter('카페')" class="tag-btn px-3 py-1.5 rounded-xl text-xs font-medium transition-all bg-skyPastel text-sky-800 hover:bg-skyBright/40">☕ #카페/디저트</button>
+          <button onclick="setFilter('문화유산')" class="tag-btn px-3 py-1.5 rounded-xl text-xs font-medium transition-all bg-skyPastel text-sky-800 hover:bg-skyBright/40">🏛️ #문화/역사</button>
+          <button onclick="setFilter('자연')" class="tag-btn px-3 py-1.5 rounded-xl text-xs font-medium transition-all bg-skyPastel text-sky-800 hover:bg-skyBright/40">🌳 #자연/산책</button>
+          <button onclick="setFilter('박물관')" class="tag-btn px-3 py-1.5 rounded-xl text-xs font-medium transition-all bg-skyPastel text-sky-800 hover:bg-skyBright/40">🌾 #전시/체험</button>
+        </div>
+      </div>
+
+      <!-- Map & List Layout -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Interactive Map Canvas -->
+        <div class="lg:col-span-2 bg-white p-2 rounded-3xl border border-sky-200 shadow-sm relative h-[420px] sm:h-[500px] z-10">
+          <div id="mapCanvas" class="w-full h-full rounded-2xl z-0"></div>
+        </div>
+
+        <!-- Spot Cards List Sidebar -->
+        <div class="bg-white p-4 rounded-3xl border border-sky-200 shadow-sm flex flex-col h-[500px]">
+          <h3 class="font-cute text-xl font-bold text-sky-900 mb-3 flex items-center gap-2">
+            📍 추천 고양 로컬 스팟
+          </h3>
+          <div id="spotList" class="flex-grow overflow-y-auto space-y-3 pr-1">
+            <!-- Spots inserted via JS -->
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- TAB 2: QUEST & STAMP BOARD -->
+    <section id="tab-quest" class="space-y-6 hidden">
+      
+      <!-- Stamp Header Banner -->
+      <div class="bg-gradient-to-r from-skyPrimary via-skyBright to-indigo-300 p-6 rounded-3xl text-white shadow-md relative overflow-hidden">
+        <div class="relative z-10">
+          <span class="bg-white/20 px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase">Local Stamp Tour</span>
+          <h2 class="font-cute text-3xl sm:text-4xl font-bold mt-2">고양시 골목 탐험 도장판 🐾</h2>
+          <p class="text-xs sm:text-sm text-sky-50 mt-1 max-w-xl">
+            고양시 곳곳의 퀘스트를 완료하고 귀여운 도장을 모아보세요! 모든 도장을 모으면 특별한 고양시 로컬 굿즈 교환권이 발급됩니다.
+          </p>
+          
+          <!-- Progress Bar -->
+          <div class="mt-4 bg-white/20 p-3 rounded-2xl max-w-md border border-white/30">
+            <div class="flex justify-between text-xs font-bold mb-1">
+              <span>달성률</span>
+              <span id="stamp-progress-text">0 / 6 완료</span>
+            </div>
+            <div class="w-full bg-white/30 rounded-full h-3 overflow-hidden">
+              <div id="stamp-progress-bar" class="bg-creamBg h-full w-0 transition-all duration-500 rounded-full"></div>
+            </div>
+          </div>
+        </div>
+        <div class="absolute -right-6 -bottom-6 text-8xl opacity-20 pointer-events-none select-none">
+          🐱
+        </div>
+      </div>
+
+      <!-- Stamp Cards Board Visualized Grid -->
+      <div class="bg-white p-6 rounded-3xl border border-sky-200 shadow-sm">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="font-cute text-2xl font-bold text-slate-800 flex items-center gap-2">
+             Stamp Collector Card <span class="text-xs font-gowun text-skyPrimary font-normal">(터치하여 도장 찍기)</span>
+          </h3>
+          <button onclick="resetStamps()" class="text-xs text-slate-400 hover:text-rose-500 underline">도장 초기화</button>
+        </div>
+
+        <div id="stampGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <!-- 6 Stamp Slots JS generated -->
+        </div>
+      </div>
+
+      <!-- Quest List Details -->
+      <div class="bg-white p-6 rounded-3xl border border-sky-200 shadow-sm">
+        <h3 class="font-cute text-2xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+          🎯 진행 가능한 동네 퀘스트
+        </h3>
+        <div id="questList" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Quest Cards JS generated -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- TAB 3: DIARY & MAGAZINE ARCHIVE -->
+    <section id="tab-archive" class="space-y-6 hidden">
+      
+      <!-- Top Action & Info Bar -->
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-3xl border border-sky-200 shadow-sm">
+        <div>
+          <h2 class="font-cute text-3xl font-bold text-slate-800">📖 고양 동네 기록장</h2>
+          <p class="text-xs text-slate-500">우리가 직접 만난 고양시의 이야기와 일기 기록들</p>
+        </div>
+        <button onclick="openDiaryModal()" class="w-full sm:w-auto px-5 py-2.5 bg-skyPrimary hover:bg-skyAccent text-white font-bold rounded-2xl font-cute text-lg shadow-sm transition-all flex items-center justify-center gap-2">
+          ✏️ 나만의 동네 일기 쓰기
+        </button>
+      </div>
+
+      <!-- Local Magazine Feature Story -->
+      <div class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-6 rounded-3xl shadow-sm relative overflow-hidden">
+        <div class="flex flex-col md:flex-row gap-6 items-center">
+          <img src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=600&q=80" 
+               alt="밤리단길 카페" 
+               class="w-full md:w-64 h-48 object-cover rounded-2xl shadow-md border-2 border-white">
+          <div class="space-y-2">
+            <span class="bg-amber-200 text-amber-900 text-xs px-2.5 py-1 rounded-full font-bold">월간 고양 잡지 Vol.12</span>
+            <h3 class="font-cute text-2xl sm:text-3xl font-bold text-amber-950">"밤리단길 골목 사이, 고요한 커피 향을 따라서"</h3>
+            <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              정발산동 밤가시 마을, 낮고 정겨운 빌라 단지 사이로 귀여운 로컬 브랜드와 카페들이 아기자기하게 들어섰습니다. 무심코 지나쳤던 담장 너머 따뜻한 에스프레소 한 잔의 이야기를 만나보세요.
+            </p>
+            <div class="pt-2 flex items-center gap-3 text-xs text-amber-800 font-bold">
+              <span>✍️ 로컬 에디터 김고양</span>
+              <span>• 2026년 9월호</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Diary Polaroid Grid Feed -->
+      <div>
+        <h3 class="font-cute text-2xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+          📸 수집된 동네 일기 아카이브
+        </h3>
+        
+        <div id="diaryGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <!-- Dynamic Polaroid Cards -->
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-sky-100 py-6 mt-12 text-center text-xs text-slate-400">
+    <div class="max-w-6xl mx-auto px-4 space-y-2">
+      <p class="font-cute text-base text-sky-800">🐾 고양 로컬 콘텐츠 & 브랜딩 프로젝트</p>
+      <p>경기도 고양시를 새로운 시선으로 기록하고 골목상권을 활성화합니다.</p>
+      <p class="text-[10px] text-slate-300">© 2026 Goyang Local Archive. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <!-- Modal: Write Diary -->
+  <div id="diaryModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-xl border border-sky-200 space-y-4 animate-stamp">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <h3 class="font-cute text-2xl font-bold text-sky-900">📝 동네 일기 작성하기</h3>
+        <button onclick="closeDiaryModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+      </div>
+
+      <form id="diaryForm" onsubmit="saveDiary(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">일기 제목</label>
+          <input type="text" id="diaryTitle" required placeholder="예: 밤리단길에서 발견한 스콘 맛집" 
+                 class="w-full px-3 py-2 bg-skyPastel/20 border border-sky-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-skyPrimary">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">관련 장소</label>
+            <select id="diarySpot" class="w-full px-3 py-2 bg-skyPastel/20 border border-sky-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-skyPrimary">
+              <option value="밤리단길 카페거리">밤리단길 카페거리</option>
+              <option value="일산호수공원">일산호수공원</option>
+              <option value="행주산성">행주산성</option>
+              <option value="서오릉">서오릉</option>
+              <option value="고양가와지밥박물관">고양가와지밥박물관</option>
+              <option value="원당 화훼단지 골목">원당 화훼단지 골목</option>
+              <option value="기타 고양 골목">기타 고양 골목</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">방문 날짜</label>
+            <input type="date" id="diaryDate" required class="w-full px-3 py-2 bg-skyPastel/20 border border-sky-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-skyPrimary">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">사진 이미지 URL (선택)</label>
+          <input type="url" id="diaryImg" placeholder="https://example.com/photo.jpg (비워두면 기본 이미지)" 
+                 class="w-full px-3 py-2 bg-skyPastel/20 border border-sky-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-skyPrimary">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">소중한 동네 추억 이야기</label>
+          <textarea id="diaryContent" rows="3" required placeholder="이 장소에서 있었던 소소하고 특별한 이야기를 남겨주세요." 
+                    class="w-full px-3 py-2 bg-skyPastel/20 border border-sky-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-skyPrimary"></textarea>
+        </div>
+
+        <div class="pt-2 flex gap-2 justify-end">
+          <button type="button" onclick="closeDiaryModal()" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-200">취소</button>
+          <button type="submit" class="px-5 py-2 bg-skyPrimary text-white rounded-xl text-xs font-bold hover:bg-skyAccent shadow-sm">기록 저장하기 ✨</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- JavaScript Logic -->
+  <script>
+    // 1. Initial Local Spots Data (Goyang-si)
+    const localSpots = [
+      {
+        id: 1,
+        title: "밤리단길 카페거리",
+        category: "카페",
+        address: "경기도 고양시 일산동구 정발산동 일대",
+        lat: 37.6685,
+        lng: 126.7862,
+        desc: "아기자기한 디저트 카페와 로컬 공방들이 모여있는 감성 골목길.",
+        quest: "밤리단길 시그니처 디저트 맛보고 사진 찍기 🍰",
+        stampIcon: "🐾",
+        img: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=400&q=80"
+      },
+      {
+        id: 2,
+        title: "일산호수공원",
+        category: "자연",
+        address: "경기도 고양시 일산동구 호수로 595",
+        lat: 37.6584,
+        lng: 126.7630,
+        desc: "동양 최대의 인공호수. 계절마다 꽃축제와 아름다운 산책로가 펼쳐집니다.",
+        quest: "호수 둘레길 산책하며 예쁜 풍경 인증샷 찍기 🚲",
+        stampIcon: "🌸",
+        img: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80"
+      },
+      {
+        id: 3,
+        title: "행주산성",
+        category: "문화유산",
+        address: "경기도 고양시 덕양구 행주내동 산26-1",
+        lat: 37.5951,
+        lng: 126.8184,
+        desc: "임진왜란 3대 대첩지 중 하나. 한강이 한눈에 내려다보이는 역사적 명소.",
+        quest: "행주산성 역사 산책길에서 한강 전경 바라보기 🏯",
+        stampIcon: "⭐",
+        img: "https://images.unsplash.com/photo-1548625361-195fe57656ef?auto=format&fit=crop&w=400&q=80"
+      },
+      {
+        id: 4,
+        title: "서오릉",
+        category: "문화유산",
+        address: "경기도 고양시 덕양구 서오릉로 434-45",
+        lat: 37.6328,
+        lng: 126.9038,
+        desc: "조선시대 왕릉 5기가 모여 있는 유네스코 세계문화유산 및 호젓한 숲길.",
+        quest: "울창한 왕릉 소나무 숲길 30분 걸어보기 🌲",
+        stampIcon: "🌿",
+        img: "https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=400&q=80"
+      },
+      {
+        id: 5,
+        title: "고양가와지밥박물관",
+        category: "박물관",
+        address: "경기도 고양시 덕양구 원흥동 471-2",
+        lat: 37.6491,
+        lng: 126.8680,
+        desc: "5,020년 전 한반도 최초의 재배벼인 '가와지 벼'의 역사를 만나는 농경박물관.",
+        quest: "가와지 벼 이야기 읽고 한반도 벼 역사퀴즈 풀기 🌾",
+        stampIcon: "🌾",
+        img: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=400&q=80"
+      },
+      {
+        id: 6,
+        title: "원당 화훼단지 골목",
+        category: "자연",
+        address: "경기도 고양시 덕양구 원당동 일원",
+        lat: 37.6610,
+        lng: 126.8520,
+        desc: "초록빛 화훼 농가들이 펼쳐진 국내 최대 화훼 생산 단지의 싱그러운 골목.",
+        quest: "마음에 드는 작은 다육식물 모종 하나 찾아보기 🪴",
+        stampIcon: "🪴",
+        img: "https://images.unsplash.com/photo-1463936575829-25148e1db1b8?auto=format&fit=crop&w=400&q=80"
+      }
+    ];
+
+    // State Variables
+    let currentCategory = '전체';
+    let map = null;
+    let markers = [];
+    let userStamps = JSON.parse(localStorage.getItem('goyang_stamps') || '[false, false, false, false, false, false]');
+    let diaries = JSON.parse(localStorage.getItem('goyang_diaries') || '[]');
+
+    // Initial Default Sample Diaries if empty
+    if (diaries.length === 0) {
+      diaries = [
+        {
+          id: 1,
+          title: "밤리단길 예쁜 카페 발견!",
+          spot: "밤리단길 카페거리",
+          date: "2026-09-18",
+          img: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=400&q=80",
+          content: "정발산동 골목을 걷다가 스콘이 맛있는 작은 카페를 찾았어요. 조용하고 따뜻해서 매주 오고 싶어요!"
+        },
+        {
+          id: 2,
+          title: "호수공원 노을 산책 🌅",
+          spot: "일산호수공원",
+          date: "2026-09-15",
+          img: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80",
+          content: "저녁 무렵 호수공원을 자전거 타고 도는데 바람도 시원하고 석양이 정말 인상적이었습니다."
+        }
+      ];
+    }
+
+    // Initialize Page
+    window.onload = function() {
+      initMap();
+      renderSpotsList();
+      renderStamps();
+      renderQuests();
+      renderDiaries();
+      
+      // Set today's date in modal
+      document.getElementById('diaryDate').value = new Date().toISOString().substring(0, 10);
+    };
+
+    // Tab Navigation Switcher
+    function switchTab(tabName) {
+      const tabs = ['map', 'quest', 'archive'];
+      tabs.forEach(t => {
+        const section = document.getElementById(`tab-${t}`);
+        const navBtn = document.getElementById(`nav-${t}`);
+        if (t === tabName) {
+          section.classList.remove('hidden');
+          navBtn.className = "flex items-center gap-1.5 px-4 py-2 rounded-xl transition-all font-cute text-lg text-sky-900 font-bold bg-white shadow-sm";
+        } else {
+          section.classList.add('hidden');
+          navBtn.className = "flex items-center gap-1.5 px-4 py-2 rounded-xl transition-all font-cute text-lg text-slate-600 hover:text-sky-800";
+        }
+      });
+
+      if (tabName === 'map' && map) {
+        setTimeout(() => { map.invalidateSize(); }, 200);
+      }
+    }
+
+    // Initialize Universal OpenStreetMap using Leaflet
+    function initMap() {
+      const container = document.getElementById('mapCanvas');
+      if (!container || map) return;
+
+      // Goyang-si Center Lat/Lng (37.6450, 126.8300)
+      map = L.map('mapCanvas', {
+        zoomControl: true,
+        scrollWheelZoom: true
+      }).setView([37.6450, 126.8300], 12);
+
+      // Clean Tile Layer from OpenStreetMap
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(map);
+
+      displayMarkers(localSpots);
+    }
+
+    // Display Custom Cat Pins on Leaflet Map
+    function displayMarkers(spots) {
+      if (!map) return;
+
+      // Clear existing markers
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+
+      // Custom Cute Cat Marker Icon
+      const catIcon = L.divIcon({
+        className: 'custom-cat-pin',
+        html: `
+          <div class="custom-cat-pin-inner w-10 h-10 bg-skyPrimary text-white rounded-full flex items-center justify-center text-xl shadow-lg border-2 border-white hover:scale-125 transition-transform cursor-pointer">
+            🐾
+          </div>
+        `,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+        popupAnchor: [0, -20]
+      });
+
+      spots.forEach((spot) => {
+        const marker = L.marker([spot.lat, spot.lng], { icon: catIcon }).addTo(map);
+
+        const popupContent = `
+          <div class="p-2 w-52 font-gowun">
+            <span class="text-[10px] bg-sky-100 text-sky-800 font-bold px-2 py-0.5 rounded-full">${spot.category}</span>
+            <h4 class="font-bold text-sm text-slate-800 mt-1">${spot.title}</h4>
+            <p class="text-[11px] text-slate-500 mt-1 leading-tight">${spot.desc}</p>
+            <button onclick="triggerQuestFromMap(${spot.id})" class="mt-2.5 w-full bg-skyPrimary hover:bg-skyAccent text-white text-xs py-1.5 px-2 rounded-xl font-bold shadow-xs transition-colors flex items-center justify-center gap-1">
+              🎯 퀘스트 도전하기
+            </button>
+          </div>
+        `;
+
+        marker.bindPopup(popupContent);
+        marker.spotId = spot.id;
+        markers.push(marker);
+      });
+    }
+
+    // Filter & Search Functionality
+    function filterSpots() {
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+      const filtered = localSpots.filter(spot => {
+        const matchesCategory = currentCategory === '전체' || spot.category === currentCategory;
+        const matchesQuery = spot.title.toLowerCase().includes(query) || 
+                             spot.address.toLowerCase().includes(query) ||
+                             spot.desc.toLowerCase().includes(query);
+        return matchesCategory && matchesQuery;
+      });
+
+      renderSpotsList(filtered);
+      displayMarkers(filtered);
+      document.getElementById('spot-count').innerText = `${filtered.length}개`;
+    }
+
+    function setFilter(category) {
+      currentCategory = category;
+      document.querySelectorAll('.tag-btn').forEach(btn => {
+        if (btn.innerText.includes(category)) {
+          btn.className = "tag-btn active px-3 py-1.5 rounded-xl text-xs font-medium transition-all bg-skyPrimary text-white shadow-sm";
+        } else {
+          btn.className = "tag-btn px-3 py-1.5 rounded-xl text-xs font-medium transition-all bg-skyPastel text-sky-800 hover:bg-skyBright/40";
+        }
+      });
+      filterSpots();
+    }
+
+    // Render Spot Cards in Sidebar
+    function renderSpotsList(spots = localSpots) {
+      const container = document.getElementById('spotList');
+      if (spots.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-10 text-slate-400 text-xs">
+            🐾 검색 조건에 맞는 고양시 스팟이 없습니다.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = spots.map(spot => `
+        <div class="bg-skyPastel/30 hover:bg-skyPastel/70 p-3 rounded-2xl border border-sky-100 transition-all flex gap-3 cursor-pointer group" onclick="panToSpot(${spot.lat}, ${spot.lng}, ${spot.id})">
+          <img src="${spot.img}" alt="${spot.title}" class="w-16 h-16 object-cover rounded-xl shadow-xs group-hover:scale-105 transition-transform">
+          <div class="flex-grow">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-bold bg-white text-skyAccent px-2 py-0.5 rounded-md border border-sky-200">${spot.category}</span>
+            </div>
+            <h4 class="font-bold text-sm text-slate-800 mt-0.5 group-hover:text-skyPrimary transition-colors">${spot.title}</h4>
+            <p class="text-[11px] text-slate-500 line-clamp-1">${spot.desc}</p>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function panToSpot(lat, lng, spotId) {
+      if (map) {
+        map.flyTo([lat, lng], 14, { duration: 1 });
+        const targetMarker = markers.find(m => m.spotId === spotId);
+        if (targetMarker) {
+          setTimeout(() => targetMarker.openPopup(), 600);
+        }
+      }
+    }
+
+    // Render Visualized Stamp Board
+    function renderStamps() {
+      const grid = document.getElementById('stampGrid');
+      let completedCount = userStamps.filter(Boolean).length;
+
+      grid.innerHTML = localSpots.map((spot, idx) => {
+        const isStamped = userStamps[idx];
+        return `
+          <div onclick="toggleStamp(${idx})" 
+               class="relative aspect-square bg-skyPastel/20 border-2 ${isStamped ? 'border-skyPrimary bg-skyPastel/50' : 'border-dashed border-sky-300'} rounded-2xl p-2 flex flex-col items-center justify-center text-center cursor-pointer hover:shadow-md transition-all group">
+            
+            ${isStamped ? `
+              <div class="animate-stamp text-4xl sm:text-5xl select-none">
+                ${spot.stampIcon}
+              </div>
+              <span class="font-cute text-xs font-bold text-skyAccent mt-1">도장 완료!</span>
+            ` : `
+              <div class="text-3xl opacity-30 group-hover:opacity-60 transition-opacity">
+                🐾
+              </div>
+              <span class="text-[11px] font-medium text-slate-400 mt-1">${spot.title.substring(0, 5)}...</span>
+              <span class="text-[9px] text-skyPrimary opacity-0 group-hover:opacity-100 transition-opacity">터치 시 도장</span>
+            `}
+
+            <span class="absolute top-1.5 left-2 text-[10px] font-bold text-slate-300">#0${idx + 1}</span>
+          </div>
+        `;
+      }).join('');
+
+      // Update Progress
+      document.getElementById('stamp-progress-text').innerText = `${completedCount} / ${localSpots.length} 완료`;
+      const percentage = (completedCount / localSpots.length) * 100;
+      document.getElementById('stamp-progress-bar').style.width = `${percentage}%`;
+    }
+
+    // Toggle Stamp Action
+    function toggleStamp(idx) {
+      userStamps[idx] = !userStamps[idx];
+      localStorage.setItem('goyang_stamps', JSON.stringify(userStamps));
+      renderStamps();
+      renderQuests();
+
+      if (userStamps[idx]) {
+        showToast(`🎉 [${localSpots[idx].title}] 퀘스트 도장을 찍었습니다!`);
+      }
+    }
+
+    function resetStamps() {
+      if (confirm('모든 도장을 초기화하시겠습니까?')) {
+        userStamps = [false, false, false, false, false, false];
+        localStorage.setItem('goyang_stamps', JSON.stringify(userStamps));
+        renderStamps();
+        renderQuests();
+      }
+    }
+
+    // Trigger Quest from Map InfoWindow
+    function triggerQuestFromMap(spotId) {
+      const idx = localSpots.findIndex(s => s.id === spotId);
+      if (idx !== -1) {
+        userStamps[idx] = true;
+        localStorage.setItem('goyang_stamps', JSON.stringify(userStamps));
+        switchTab('quest');
+        renderStamps();
+        renderQuests();
+        showToast(`🎯 ${localSpots[idx].title} 퀘스트 달성 완료!`);
+      }
+    }
+
+    // Render Quests List
+    function renderQuests() {
+      const container = document.getElementById('questList');
+      container.innerHTML = localSpots.map((spot, idx) => {
+        const isCompleted = userStamps[idx];
+        return `
+          <div class="p-4 rounded-2xl border ${isCompleted ? 'bg-skyPastel/30 border-skyPrimary/40' : 'bg-white border-sky-100'} shadow-xs flex items-center justify-between gap-3">
+            <div class="space-y-1">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isCompleted ? 'bg-skyPrimary text-white' : 'bg-slate-100 text-slate-600'}">
+                ${isCompleted ? '완료됨 ✨' : '도전 가능'}
+              </span>
+              <h4 class="font-bold text-slate-800 text-sm">${spot.title}</h4>
+              <p class="text-xs text-slate-600">${spot.quest}</p>
+            </div>
+            <button onclick="toggleStamp(${idx})" 
+                    class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${isCompleted ? 'bg-slate-200 text-slate-600' : 'bg-skyPrimary hover:bg-skyAccent text-white shadow-xs'}">
+              ${isCompleted ? '도장 취소' : '도장 찍기 🐾'}
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Render Diary Polaroid Grid
+    function renderDiaries() {
+      const container = document.getElementById('diaryGrid');
+      
+      if (diaries.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full text-center py-12 text-slate-400">
+            📖 아직 작성된 동네 일기가 없습니다. 첫 일기를 작성해보세요!
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = diaries.map(diary => `
+        <div class="polaroid rounded-xl flex flex-col justify-between">
+          <div>
+            <div class="overflow-hidden rounded-lg mb-3 h-44 bg-slate-100">
+              <img src="${diary.img || 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80'}" 
+                   alt="${diary.title}" 
+                   class="w-full h-full object-cover">
+            </div>
+            <div class="flex items-center justify-between text-[11px] text-skyAccent font-bold mb-1">
+              <span>📍 ${diary.spot}</span>
+              <span class="text-slate-400 font-normal">${diary.date}</span>
+            </div>
+            <h4 class="font-cute text-xl font-bold text-slate-800">${diary.title}</h4>
+            <p class="text-xs text-slate-600 mt-1 line-clamp-3 leading-relaxed">${diary.content}</p>
+          </div>
+          <div class="mt-4 pt-2 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400">
+            <span>🐾 고양 로컬 아카이브</span>
+            <button onclick="deleteDiary(${diary.id})" class="hover:text-rose-500">삭제</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Open/Close Diary Modal
+    function openDiaryModal() {
+      document.getElementById('diaryModal').classList.remove('hidden');
+    }
+    function closeDiaryModal() {
+      document.getElementById('diaryModal').classList.add('hidden');
+    }
+
+    // Save New Diary Entry
+    function saveDiary(e) {
+      e.preventDefault();
+      const title = document.getElementById('diaryTitle').value;
+      const spot = document.getElementById('diarySpot').value;
+      const date = document.getElementById('diaryDate').value;
+      const img = document.getElementById('diaryImg').value;
+      const content = document.getElementById('diaryContent').value;
+
+      const newEntry = {
+        id: Date.now(),
+        title,
+        spot,
+        date,
+        img,
+        content
+      };
+
+      diaries.unshift(newEntry);
+      localStorage.setItem('goyang_diaries', JSON.stringify(diaries));
+      
+      renderDiaries();
+      closeDiaryModal();
+      document.getElementById('diaryForm').reset();
+      showToast('📝 동네 일기가 성공적으로 저장되었습니다!');
+    }
+
+    function deleteDiary(id) {
+      if (confirm('이 일기를 삭제하시겠습니까?')) {
+        diaries = diaries.filter(d => d.id !== id);
+        localStorage.setItem('goyang_diaries', JSON.stringify(diaries));
+        renderDiaries();
+        showToast('일기가 삭제되었습니다.');
+      }
+    }
+
+    // Simple Custom Toast Message
+    function showToast(msg) {
+      const toast = document.createElement('div');
+      toast.className = 'fixed bottom-6 right-6 bg-slate-800/90 text-white text-xs px-4 py-3 rounded-2xl shadow-xl z-50 animate-stamp font-gowun';
+      toast.innerText = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => {
+        toast.remove();
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
