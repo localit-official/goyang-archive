@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>고양 골목 탐험 도장판 🐾</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            skyPastel: '#E0F2FE',
+            skyBright: '#7DD3FC',
+            skyPrimary: '#38BDF8',
+            skyAccent: '#0284C7',
+            pastelBg: '#F0F9FF',
+            creamBg: '#FEFCE8',
+          },
+          fontFamily: {
+            gaegu: ['Gaegu', 'cursive'],
+            gowun: ['Gowun Dodum', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { font-family: 'Gowun Dodum', sans-serif; background-color: #F0F9FF; color: #334155; }
+    .font-cute { font-family: 'Gaegu', cursive; }
+
+    @keyframes stampBounce {
+      0% { transform: scale(3) rotate(-15deg); opacity: 0; }
+      50% { transform: scale(0.9) rotate(5deg); opacity: 1; }
+      75% { transform: scale(1.1) rotate(-3deg); }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+    .animate-stamp { animation: stampBounce 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+    @keyframes shine {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .coupon-shine {
+      background-image: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.55) 50%, transparent 70%);
+      background-size: 200% 100%;
+      animation: shine 3s linear infinite;
+    }
+
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #E0F2FE; }
+    ::-webkit-scrollbar-thumb { background: #7DD3FC; border-radius: 9999px; }
+
+    /* Ticket notches */
+    .ticket { position: relative; }
+    .ticket::before, .ticket::after {
+      content: ''; position: absolute; top: 50%; width: 28px; height: 28px;
+      background: #F0F9FF; border-radius: 9999px; transform: translateY(-50%);
+    }
+    .ticket::before { left: -14px; border-right: 2px solid #FCD34D; }
+    .ticket::after { right: -14px; border-left: 2px solid #FCD34D; }
+    .ticket.used::before { border-right-color: #CBD5E1; }
+    .ticket.used::after { border-left-color: #CBD5E1; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <header class="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-sky-200 shadow-sm">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+      <div class="w-12 h-12 bg-skyBright/30 rounded-2xl flex items-center justify-center text-2xl shadow-inner border border-skyBright">🐾</div>
+      <div>
+        <h1 class="font-cute text-2xl sm:text-3xl font-bold text-sky-800 tracking-wide flex items-center gap-1.5">
+          숨은 고양 찾기 <span class="text-xs font-gowun bg-skyPrimary text-white px-2 py-0.5 rounded-full font-normal">스탬프 투어</span>
+        </h1>
+        <p class="text-xs text-slate-500">도장을 모두 모으면 로컬 쿠폰이 발급돼요</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow max-w-4xl w-full mx-auto p-4 sm:p-6 space-y-6">
+
+    <!-- Stamp Banner -->
+    <div class="bg-gradient-to-r from-skyPrimary via-skyBright to-indigo-300 p-6 rounded-3xl text-white shadow-md relative overflow-hidden">
+      <div class="relative z-10">
+        <span class="bg-white/20 px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase">Local Stamp Tour</span>
+        <h2 class="font-cute text-3xl sm:text-4xl font-bold mt-2">고양시 골목 탐험 도장판 🐾</h2>
+        <p class="text-xs sm:text-sm text-sky-50 mt-1 max-w-xl">
+          고양시 곳곳의 퀘스트를 완료하고 귀여운 도장을 모아보세요! 6개를 모두 모으면 특별 쿠폰이 발급됩니다 🎁
+        </p>
+
+        <div class="mt-4 bg-white/20 p-3 rounded-2xl max-w-md border border-white/30">
+          <div class="flex justify-between text-xs font-bold mb-1">
+            <span>달성률</span>
+            <span id="stamp-progress-text">0 / 6 완료</span>
+          </div>
+          <div class="w-full bg-white/30 rounded-full h-3 overflow-hidden">
+            <div id="stamp-progress-bar" class="bg-creamBg h-full w-0 transition-all duration-500 rounded-full"></div>
+          </div>
+        </div>
+      </div>
+      <div class="absolute -right-6 -bottom-6 text-8xl opacity-20 pointer-events-none select-none">🐱</div>
+    </div>
+
+    <!-- Coupon Section (shown when issued) -->
+    <section id="couponSection" class="hidden"></section>
+
+    <!-- Stamp Cards Board -->
+    <div class="bg-white p-6 rounded-3xl border border-sky-200 shadow-sm">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="font-cute text-2xl font-bold text-slate-800 flex items-center gap-2">
+          Stamp Collector Card <span class="text-xs font-gowun text-skyPrimary font-normal">(터치하여 도장 찍기)</span>
+        </h3>
+        <button onclick="resetAll()" class="text-xs text-slate-400 hover:text-rose-500 underline">전체 초기화</button>
+      </div>
+      <div id="stampGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-4"></div>
+    </div>
+
+    <!-- Quest List -->
+    <div class="bg-white p-6 rounded-3xl border border-sky-200 shadow-sm">
+      <h3 class="font-cute text-2xl font-bold text-slate-800 mb-4 flex items-center gap-2">🎯 진행 가능한 동네 퀘스트</h3>
+      <div id="questList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </div>
+
+  </main>
+
+  <footer class="bg-white border-t border-sky-100 py-6 mt-12 text-center text-xs text-slate-400">
+    <div class="max-w-4xl mx-auto px-4 space-y-2">
+      <p class="font-cute text-base text-sky-800">🐾 고양 로컬 콘텐츠 & 브랜딩 프로젝트</p>
+      <p>경기도 고양시를 새로운 시선으로 기록하고 골목상권을 활성화합니다.</p>
+    </div>
+  </footer>
+
+  <!-- Modal: Coupon Issued -->
+  <div id="couponModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-xl border border-amber-200 text-center space-y-3 animate-stamp">
+      <div class="text-6xl">🎉</div>
+      <h3 class="font-cute text-3xl font-bold text-amber-900">스탬프 투어 완주!</h3>
+      <p class="text-sm text-slate-600">고양시 골목 6곳을 모두 탐험했어요.<br>축하 쿠폰이 발급되었습니다 🎁</p>
+      <button onclick="closeCouponModal()" class="w-full mt-2 px-5 py-2.5 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold rounded-2xl font-cute text-xl shadow-sm transition-all">
+        내 쿠폰 확인하기
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // ---- Data ----
+    const spots = [
+      { id: 1, title: "밤리단길 카페거리", category: "카페", quest: "밤리단길 시그니처 디저트 맛보고 사진 찍기 🍰", stampIcon: "🐾" },
+      { id: 2, title: "일산호수공원", category: "자연", quest: "호수 둘레길 산책하며 예쁜 풍경 인증샷 찍기 🚲", stampIcon: "🌸" },
+      { id: 3, title: "행주산성", category: "문화유산", quest: "행주산성 역사 산책길에서 한강 전경 바라보기 🏯", stampIcon: "⭐" },
+      { id: 4, title: "서오릉", category: "문화유산", quest: "울창한 왕릉 소나무 숲길 30분 걸어보기 🌲", stampIcon: "🌿" },
+      { id: 5, title: "고양가와지밥박물관", category: "박물관", quest: "가와지 벼 이야기 읽고 한반도 벼 역사퀴즈 풀기 🌾", stampIcon: "🌾" },
+      { id: 6, title: "원당 화훼단지 골목", category: "자연", quest: "마음에 드는 작은 다육식물 모종 하나 찾아보기 🪴", stampIcon: "🪴" }
+    ];
+
+    const COUPON_NAME = "고양 로컬 스탬프 투어 완주 쿠폰";
+    const COUPON_BENEFIT = "제휴 로컬 매장 10% 할인";
+    const COUPON_VALID_DAYS = 30;
+
+    // ---- State (with safe localStorage access) ----
+    function load(key, fallback) {
+      try {
+        const v = localStorage.getItem(key);
+        return v ? JSON.parse(v) : fallback;
+      } catch (e) { return fallback; }
+    }
+    function save(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+    }
+
+    let userStamps = load('goyang_stamps', null);
+    if (!Array.isArray(userStamps) || userStamps.length !== spots.length) {
+      userStamps = spots.map(() => false);
+    }
+    let coupon = load('goyang_coupon', null); // { code, issuedAt, expiresAt, used }
+
+    // ---- Init ----
+    window.onload = function () {
+      renderStamps();
+      renderQuests();
+      renderCoupon();
+    };
+
+    // ---- Stamps ----
+    function renderStamps() {
+      const grid = document.getElementById('stampGrid');
+      const completed = userStamps.filter(Boolean).length;
+
+      grid.innerHTML = spots.map((spot, idx) => {
+        const stamped = userStamps[idx];
+        return `
+          <div onclick="toggleStamp(${idx})"
+               class="relative aspect-square bg-skyPastel/20 border-2 ${stamped ? 'border-skyPrimary bg-skyPastel/50' : 'border-dashed border-sky-300'} rounded-2xl p-2 flex flex-col items-center justify-center text-center cursor-pointer hover:shadow-md transition-all group">
+            ${stamped ? `
+              <div class="animate-stamp text-4xl sm:text-5xl select-none">${spot.stampIcon}</div>
+              <span class="font-cute text-sm font-bold text-skyAccent mt-1">도장 완료!</span>
+              <span class="text-[10px] text-slate-500 mt-0.5">${spot.title}</span>
+            ` : `
+              <div class="text-3xl opacity-30 group-hover:opacity-60 transition-opacity">🐾</div>
+              <span class="text-[11px] font-medium text-slate-400 mt-1">${spot.title}</span>
+              <span class="text-[9px] text-skyPrimary opacity-0 group-hover:opacity-100 transition-opacity">터치 시 도장</span>
+            `}
+            <span class="absolute top-1.5 left-2 text-[10px] font-bold text-slate-300">#0${idx + 1}</span>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('stamp-progress-text').innerText = `${completed} / ${spots.length} 완료`;
+      document.getElementById('stamp-progress-bar').style.width = `${(completed / spots.length) * 100}%`;
+    }
+
+    function toggleStamp(idx) {
+      userStamps[idx] = !userStamps[idx];
+      save('goyang_stamps', userStamps);
+      renderStamps();
+      renderQuests();
+
+      if (userStamps[idx]) {
+        showToast(`🎉 [${spots[idx].title}] 퀘스트 도장을 찍었습니다!`);
+      }
+
+      // All stamps collected and no coupon yet -> issue coupon
+      if (userStamps.every(Boolean) && !coupon) {
+        issueCoupon();
+      }
+    }
+
+    function resetAll() {
+      const msg = coupon && !coupon.used
+        ? '모든 도장과 발급된 쿠폰(미사용)이 삭제됩니다. 초기화하시겠습니까?'
+        : '모든 도장을 초기화하시겠습니까?';
+      if (!confirm(msg)) return;
+      userStamps = spots.map(() => false);
+      coupon = null;
+      save('goyang_stamps', userStamps);
+      try { localStorage.removeItem('goyang_coupon'); } catch (e) {}
+      renderStamps();
+      renderQuests();
+      renderCoupon();
+    }
+
+    // ---- Quests ----
+    function renderQuests() {
+      const container = document.getElementById('questList');
+      container.innerHTML = spots.map((spot, idx) => {
+        const done = userStamps[idx];
+        return `
+          <div class="p-4 rounded-2xl border ${done ? 'bg-skyPastel/30 border-skyPrimary/40' : 'bg-white border-sky-100'} flex items-center justify-between gap-3">
+            <div class="space-y-1">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${done ? 'bg-skyPrimary text-white' : 'bg-slate-100 text-slate-600'}">
+                ${done ? '완료됨 ✨' : '도전 가능'}
+              </span>
+              <h4 class="font-bold text-slate-800 text-sm">${spot.title}</h4>
+              <p class="text-xs text-slate-600">${spot.quest}</p>
+            </div>
+            <button onclick="toggleStamp(${idx})"
+                    class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${done ? 'bg-slate-200 text-slate-600' : 'bg-skyPrimary hover:bg-skyAccent text-white shadow-sm'}">
+              ${done ? '도장 취소' : '도장 찍기 🐾'}
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ---- Coupon ----
+    function generateCouponCode() {
+      // Avoid look-alike characters (0/O, 1/I)
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let part = '';
+      for (let i = 0; i < 8; i++) part += chars[Math.floor(Math.random() * chars.length)];
+      return `GY-${part.slice(0, 4)}-${part.slice(4)}`;
+    }
+
+    function issueCoupon() {
+      const now = new Date();
+      const expires = new Date(now.getTime() + COUPON_VALID_DAYS * 24 * 60 * 60 * 1000);
+      coupon = {
+        code: generateCouponCode(),
+        issuedAt: now.toISOString(),
+        expiresAt: expires.toISOString(),
+        used: false
+      };
+      save('goyang_coupon', coupon);
+      renderCoupon();
+      document.getElementById('couponModal').classList.remove('hidden');
+    }
+
+    function closeCouponModal() {
+      document.getElementById('couponModal').classList.add('hidden');
+      const sec = document.getElementById('couponSection');
+      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function formatDate(iso) {
+      const d = new Date(iso);
+      return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    function renderCoupon() {
+      const sec = document.getElementById('couponSection');
+      if (!coupon) {
+        sec.classList.add('hidden');
+        sec.innerHTML = '';
+        return;
+      }
+
+      const expired = new Date(coupon.expiresAt) < new Date();
+      const inactive = coupon.used || expired;
+      const statusLabel = coupon.used ? '사용 완료' : (expired ? '기간 만료' : '사용 가능');
+      const statusClass = inactive ? 'bg-slate-200 text-slate-600' : 'bg-emerald-100 text-emerald-700';
+
+      sec.classList.remove('hidden');
+      sec.innerHTML = `
+        <h3 class="font-cute text-2xl font-bold text-slate-800 mb-3 flex items-center gap-2">🎁 내 쿠폰</h3>
+        <div class="ticket ${inactive ? 'used' : ''} relative overflow-hidden rounded-3xl border-2 ${inactive ? 'border-slate-300 bg-slate-100' : 'border-amber-300 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50'} shadow-md">
+          ${inactive ? '' : '<div class="coupon-shine absolute inset-0 pointer-events-none"></div>'}
+          <div class="relative flex flex-col sm:flex-row">
+            <div class="flex-grow p-5 sm:p-6 space-y-2">
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${statusClass}">${statusLabel}</span>
+                <span class="text-[10px] text-slate-500">스탬프 투어 완주 보상</span>
+              </div>
+              <h4 class="font-cute text-2xl sm:text-3xl font-bold ${inactive ? 'text-slate-500' : 'text-amber-900'}">${COUPON_NAME}</h4>
+              <p class="text-lg font-bold ${inactive ? 'text-slate-500' : 'text-orange-600'}">${COUPON_BENEFIT}</p>
+              <p class="text-xs text-slate-500">
+                발급일 ${formatDate(coupon.issuedAt)} · 유효기간 ~ ${formatDate(coupon.expiresAt)}
+              </p>
+            </div>
+            <div class="sm:w-60 p-5 sm:p-6 border-t-2 sm:border-t-0 sm:border-l-2 border-dashed ${inactive ? 'border-slate-300' : 'border-amber-300'} flex flex-col items-center justify-center gap-2 text-center">
+              <span class="text-[10px] text-slate-500 font-bold">쿠폰 코드</span>
+              <div class="font-mono text-xl font-bold tracking-widest ${inactive ? 'text-slate-400 line-through' : 'text-slate-800'}">${coupon.code}</div>
+              <div class="flex gap-2 w-full">
+                <button onclick="copyCouponCode()" class="flex-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-amber-300 text-amber-800 hover:bg-amber-50 transition-all">코드 복사</button>
+                ${inactive ? '' : '<button onclick="useCoupon()" class="flex-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 hover:bg-amber-500 text-amber-950 transition-all">사용하기</button>'}
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-2">※ 매장에서 직원에게 쿠폰 화면을 보여준 뒤 '사용하기'를 눌러주세요. 사용 처리 후에는 되돌릴 수 없습니다.</p>
+      `;
+    }
+
+    function copyCouponCode() {
+      if (!coupon) return;
+      const done = () => showToast('📋 쿠폰 코드가 복사되었습니다!');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(coupon.code).then(done).catch(fallbackCopy);
+      } else {
+        fallbackCopy();
+      }
+      function fallbackCopy() {
+        const ta = document.createElement('textarea');
+        ta.value = coupon.code;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) { showToast('복사에 실패했어요. 코드를 직접 선택해주세요.'); }
+        ta.remove();
+      }
+    }
+
+    function useCoupon() {
+      if (!coupon || coupon.used) return;
+      if (!confirm('쿠폰을 사용 처리할까요? 사용 후에는 되돌릴 수 없어요.')) return;
+      coupon.used = true;
+      save('goyang_coupon', coupon);
+      renderCoupon();
+      showToast('✅ 쿠폰이 사용 처리되었습니다.');
+    }
+
+    // ---- Toast ----
+    function showToast(msg) {
+      const toast = document.createElement('div');
+      toast.className = 'fixed bottom-6 right-6 bg-slate-800/90 text-white text-xs px-4 py-3 rounded-2xl shadow-xl z-[60] animate-stamp font-gowun';
+      toast.innerText = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+  </script>
+</body>
+</html>
